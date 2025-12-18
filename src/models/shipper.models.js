@@ -44,22 +44,6 @@ const shipperSchema = new Schema(
       required: true,
       unique: true,
     },
-    industryType: {
-      type: String,
-      enum: [
-        "Agriculture",
-        "Textiles",
-        "Electronics",
-        "Chemicals",
-        "Automotive",
-        "FMCG",
-        "Pharmaceuticals",
-        "Construction",
-        "Retail",
-        "Other",
-      ],
-      required: true,
-    },
     refreshToken: {
       type: String,
     }
@@ -67,10 +51,9 @@ const shipperSchema = new Schema(
   { timestamps: true }
 );
 
-shipperSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) next();
+shipperSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
 shipperSchema.methods.isPasswordCorrect = async function (password) {
