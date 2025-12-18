@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
-import uploadOnCloudinary from "../utils/cloudinary.js";
+import { uploadOnCloudinary, safeRemoveFile } from "../utils/cloudinary.js";
 import {
   isEmpty,
   isPasswordValid,
@@ -143,11 +143,11 @@ export const registerUser = asyncHandler(async (req, res) => {
   if (!isPhoneNumberValid(contactNumber))
     errors.push("Contact number is invalid");
   if (!isGSTValid(gstNumber)) errors.push("GST number is invalid");
-  if (!isPasswordValid(password))
+  if (password && !isPasswordValid(password))
     errors.push("Password should be at least 6 characters");
 
   if (errors.length > 0) {
-    if (logoLocalPath) fs.unlinkSync(logoLocalPath);
+    if (logoLocalPath) safeRemoveFile(logoLocalPath);
     throw new ApiError(400, errors.join(", "));
   }
 
@@ -155,7 +155,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     $or: [{ gstNumber }, { contactEmail }, { contactNumber }],
   });
   if (existingUser) {
-    if (logoLocalPath) fs.unlinkSync(logoLocalPath);
+    if (logoLocalPath) safeRemoveFile(logoLocalPath);
     throw new ApiError(409, `${role} with this Email or Contact Number or GST already exists`);
   }
 

@@ -21,7 +21,7 @@ const vehicleSchema = new Schema(
         "CLOSED_CONTAINER",
         "TANKER",
         "REFRIGERATED",
-        "PICKUP_SMALL",
+        "LCV",
       ],
       required: true,
     },
@@ -42,10 +42,11 @@ const vehicleSchema = new Schema(
       type: Number,
       required: true,
     },
-    isAvailable: {
-      type: Boolean,
-      default: true,
-    },
+    status: {
+      type: String,
+      enum: ["AVAILABLE","BOOKED", "IN_TRANSIT", "UNDER_MAINTENANCE"],
+      default: "AVAILABLE",
+    }
   },
   { timestamps: true }
 );

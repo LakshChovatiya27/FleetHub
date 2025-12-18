@@ -1,10 +1,11 @@
 export const isEmpty = (field) => {
-  if (typeof field === "string") {
-    if (field?.trim() === "") return true;
-    else return false;
-  } 
-  else if (!field) return true;
-  else return false;
+  if (field === null || field === undefined) return true;
+  if (Array.isArray(field)) return field.length === 0;
+  if (typeof field === "string") return field.trim() === "";
+  if (typeof field === "number") return Number.isNaN(field);
+  if (typeof field === "boolean") return false;
+  if (typeof field === "object") return Object.keys(field).length === 0;
+  return false;
 };
 
 export const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

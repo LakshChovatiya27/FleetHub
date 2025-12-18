@@ -7,21 +7,26 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET 
 });
 
-const uploadOnCloudinary = async (localFilePath) => {
+export const safeRemoveFile = (filePath) => {
+  if (!filePath) return;
+  try {
+    fs.rmSync(filePath, { force: true });
+  } catch (_) { }
+}
+
+export const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;   
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",   
       folder: "FleetHub" 
     })
-    fs.unlinkSync(localFilePath)  
+    safeRemoveFile(localFilePath);
     return response; 
   } 
   catch (error) {
     console.error("Cloudinary Upload Error:", error);
-    fs.unlinkSync(localFilePath)   
+    safeRemoveFile(localFilePath);
     return null;    
   }
 }
-
-export default uploadOnCloudinary;

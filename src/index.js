@@ -5,14 +5,16 @@ const PORT = process.env.PORT || 8080;
 
 connectDB()
   .then(() => {
-    app.on("error", (err) => {
-      console.log("MONGO connection failed ", err);
+    const server = app.listen(PORT, () => {
+      console.log(`Server is running on port: ${PORT}`);
     });
 
-    app.listen(PORT, () => {
-      console.log(`Server is running on port: ${PORT}`);
+    server.on("error", (err) => {
+      console.error("Server listen error:", err);
+      process.exit(1);
     });
   })
   .catch((err) => {
-    console.log("MONGO DB connection failed ", err);
+    console.error("MONGO DB connection failed", err);
+    process.exit(1);
   });
