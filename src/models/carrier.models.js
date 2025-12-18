@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 const carrierSchema = new Schema(
   {
@@ -55,6 +56,9 @@ const carrierSchema = new Schema(
       type: Number,
       default: 0,
     },
+    refreshToken: {
+      type: String,
+    }
   },
   { timestamps: true }
 );
@@ -67,6 +71,34 @@ carrierSchema.pre("save", async function (next) {
 
 carrierSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
+};
+
+carrierSchema.methods.generateAccessToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      role: "carrier",
+      contactEmail: this.contactEmail,
+      gstNumber: this.gstNumber,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    }
+  );
+};
+
+carrierSchema.methods.generateRefreshToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      role: "carrier",
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    }
+  );
 };
 
 const Carrier = mongoose.model("Carrier", carrierSchema);
