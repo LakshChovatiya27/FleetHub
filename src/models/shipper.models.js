@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import bcrypt from "bcrypt";
 
 const shipperSchema = new Schema(
   {
@@ -26,6 +27,10 @@ const shipperSchema = new Schema(
     password: {
       type: String,
       required: true,
+    },
+    logo: {
+      type: String,
+      default: null,
     },
     address: {
       street: { type: String, required: true, trim: true },
@@ -57,6 +62,16 @@ const shipperSchema = new Schema(
   },
   { timestamps: true }
 );
+
+shipperSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+shipperSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
 
 const Shipper = mongoose.model("Shipper", shipperSchema);
 
