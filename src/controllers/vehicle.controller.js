@@ -3,6 +3,10 @@ import Carrier from "../models/carrier.models.js";
 import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import {
+  validateIndianVehicleNumber,
+  validateManufacturingYear,
+} from "../utils/validations.js";
 
 export const addVehicle = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Unauthorized");
@@ -12,8 +16,8 @@ export const addVehicle = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Only carriers can add vehicles");
 
   let {
-    vehicleType,
     vehicleNumber,
+    vehicleType,
     capacityTons = 0,
     capacityLitres = 0,
     lengthFt = 0,
@@ -27,52 +31,70 @@ export const addVehicle = asyncHandler(async (req, res) => {
   if (!vehicleType) errors.push("Vehicle type is required");
   if (!vehicleNumber) errors.push("Vehicle number is required");
 
-  if (vehicleType === "TANKER" && capacityLitres <= 0) {
-    errors.push(
-      "Capacity in litres must be greater than 0 for TANKER vehicles"
-    );
-  }
+  vehicleType = vehicleType.toUpperCase();
+  vehicleNumber = vehicleNumber.toUpperCase();
 
-  if (vehicleType !== "TANKER" && capacityTons <= 0) {
-    errors.push(
-      "Capacity in tons must be greater than 0 for non-TANKER vehicles"
-    );
-    if (vehicleType === "TRAILER_FLATBED") {
-      if (lengthFt <= 0 || widthFt <= 0)
-        errors.push(
-          "Length and width must be greater than 0 for non-TANKER vehicles"
-        );
-      heightFt = 0;
-    } else {
-      if (lengthFt <= 0 || widthFt <= 0 || heightFt <= 0)
-        errors.push(
-          "Length, width and height must be greater than 0 for non-TANKER vehicles"
-        );
+  const validVehicleNumber = validateIndianVehicleNumber(vehicleNumber);
+  if (!validVehicleNumber)
+    errors.push("Vehicle number is invalid as per Indian standards");
+  else vehicleNumber = validVehicleNumber;
+
+  if (vehicleType === "TANKER") {
+    if (capacityLitres <= 0)
+      errors.push("TANKERS must have some capacity in litres");
+    capacityTons = 0;
+    lengthFt = 0;
+    widthFt = 0;
+    heightFt = 0;
+  } 
+  else if (vehicleType === "LCV") {
+    if (capacityTons <= 0 || capacityTons > 3)
+      errors.push("LCV capacity must be less than 3 tons");
+
+    capacityLitres = 0;
+  } 
+  else {
+    if (capacityTons <= 3)
+      errors.push("Non-LCV capacity must be greater than 3 tons");
+
+    if (lengthFt <= 0 || widthFt <= 0) {
+      errors.push("Length and width must be greater than 0");
     }
+
+    if (vehicleType !== "TRAILER_FLATBED" && heightFt <= 0) {
+      errors.push(
+        "Height must be greater than 0 for non-TRAILER_FLATBED vehicles"
+      );
+    }
+
+    if (vehicleType === "TRAILER_FLATBED") heightFt = 0;
+
+    capacityLitres = 0;
   }
 
-  if (vehicleType === "LCV" && capacityTons > 3) {
-    errors.push("LCV capacity must be 3 tons or less");
-  }
+  if (!manufacturingYear) errors.push("Manufacturing year is required");
 
-  if (vehicleType !== "LCV" && vehicleType !== "TANKER" && capacityTons <= 3) {
-    errors.push("Non-LCV capacity must be greater than 3 tons");
-  }
+  const yearError = validateManufacturingYear(manufacturingYear);
+  if (yearError) errors.push(yearError);
 
-  if (!manufacturingYear) {
-    errors.push("Manufacturing year is required");
-  }
+  if (errors.length > 0) throw new ApiError(400, errors.join(", "));
 
-  if (errors.length > 0) {
-    throw new ApiError(400, errors.join(", "));
-  }
-
-  const existingVehicle = await Vehicle.findOne({
-    vehicleNumber: vehicleNumber.toUpperCase(),
-  });
+  const existingVehicle = await Vehicle.findOne({ vehicleNumber });
 
   if (existingVehicle) {
     throw new ApiError(409, "Vehicle with this Number exists");
+  }
+
+  if (vehicleType === "TANKER") {
+    capacityTons = 0;
+    lengthFt = 0;
+    widthFt = 0;
+    heightFt = 0;
+  } else {
+    capacityLitres = 0;
+    if (vehicleType === "TRAILER_FLATBED") {
+      heightFt = 0;
+    }
   }
 
   const vehicle = await Vehicle.create({
@@ -139,7 +161,10 @@ export const getAllVehicles = asyncHandler(async (req, res) => {
     createdAt: -1,
   });
 
-  if (vehicles.length === 0) throw new ApiError(404, "No vehicles found");
+  if (vehicles.length === 0)
+    return res
+      .status(200)
+      .json(new ApiResponse(200, [], "No vehicles found in your fleet"));
 
   return res
     .status(200)
@@ -165,6 +190,10 @@ export const deleteVehicle = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You are not authorized to delete this vehicle");
   }
 
+  if (["BIDDED", "BOOKED", "IN_TRANSIT"].includes(vehicle.status)) {
+    throw new ApiError(400, "Cannot delete vehicle with active assignments");
+  }
+
   await Vehicle.findByIdAndDelete(vehicleId);
 
   await Carrier.findByIdAndUpdate(req.user._id, { $inc: { fleetSize: -1 } });
@@ -174,86 +203,56 @@ export const deleteVehicle = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Vehicle deleted successfully"));
 });
 
-export const updateVehicle = asyncHandler(async (req, res) => {
+export const updateVehicleStatus = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Unauthorized");
 
-  const role = req.user?.role;
-  if (role !== "carrier")
-    throw new ApiError(403, "Only carriers can delete vehicles");
+  if (req.user.role !== "carrier") {
+    throw new ApiError(403, "Only carriers can update vehicle status");
+  }
 
   const { vehicleId } = req.params;
+  let { status } = req.body;
 
-  let {
-    vehicleType,
-    vehicleNumber,
-    status,
-    capacityTons,
-    capacityLitres,
-    lengthFt,
-    widthFt,
-    heightFt,
-    manufacturingYear,
-  } = req.body;
+  status = status?.toUpperCase();
+
+  const validStatuses = [
+    "AVAILABLE",
+    "BIDDED",
+    "BOOKED",
+    "IN_TRANSIT",
+    "MAINTENANCE",
+  ];
+
+  if (!validStatuses.includes(status)) {
+    throw new ApiError(400, "Invalid vehicle status");
+  }
 
   const vehicle = await Vehicle.findById(vehicleId);
-
-  if (!vehicle) {
-    throw new ApiError(404, "Vehicle not found");
-  }
+  if (!vehicle) throw new ApiError(404, "Vehicle not found");
 
   if (vehicle.carrier.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "You are not authorized to update this vehicle");
+    throw new ApiError(403, "Not authorized to update this vehicle");
   }
 
-  const isVehicleBusy = ["IN_TRANSIT", "BOOKED"].includes(vehicle.status);
+  const current = vehicle.status;
 
-  const isUpdatingSpecs =
-    capacityTons ||
-    capacityLitres ||
-    lengthFt ||
-    widthFt ||
-    heightFt ||
-    manufacturingYear;
+  const allowedTransitions = {
+    AVAILABLE: ["BIDDED", "MAINTENANCE"],
+    MAINTENANCE: ["AVAILABLE"],
+    BIDDED: ["BOOKED"],
+    BOOKED: ["IN_TRANSIT"],
+    IN_TRANSIT: ["AVAILABLE"],
+  };
 
-  if (isVehicleBusy && isUpdatingSpecs) {
+  if (!allowedTransitions[current]?.includes(status)) {
     throw new ApiError(
       400,
-      `Vehicle is currently '${vehicle.status}'. You cannot change physical details (Capacity/Dimensions) until the trip is finished.`
+      `Cannot change status from ${current} to ${status}`
     );
   }
 
-  if (status) vehicle.status = status;
-  if (!isVehicleBusy) {
-    if (vehicleType) vehicle.vehicleType = vehicleType;
-    if (VehicleNumber) vehicle.vehicleNumber = VehicleNumber;
-    if (manufacturingYear) vehicle.manufacturingYear = manufacturingYear;
-
-    if (vehicle.vehicleType === "TANKER") {
-      if (capacityLitres > 0) {
-        vehicle.capacityLitres = capacityLitres;
-        capacityTons = 0;
-        lengthFt = 0;
-        widthFt = 0;
-        heightFt = 0;
-      }
-    } else {
-      if (capacityTons) {
-        vehicle.capacityTons = capacityTons;
-        capacityLitres = 0;
-        if (vehicle.vehicleType === "TRAILER_FLATBED") {
-          heightFt = 0;
-          if (lengthFt) vehicle.dimensions.lengthFt = lengthFt;
-          if (widthFt) vehicle.dimensions.widthFt = widthFt;
-        } else {
-          if (lengthFt) vehicle.dimensions.lengthFt = lengthFt;
-          if (widthFt) vehicle.dimensions.widthFt = widthFt;
-          if (heightFt) vehicle.dimensions.heightFt = heightFt;
-        }
-      }
-    }
-  }
-
-  const updatedVehicle = await vehicle.save({ validateBeforeSave: true });
+  vehicle.status = status;
+  const updatedVehicle = await vehicle.save();
 
   return res
     .status(200)
@@ -261,7 +260,7 @@ export const updateVehicle = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         updatedVehicle,
-        "Vehicle details updated successfully"
+        "Vehicle status updated successfully"
       )
     );
 });

@@ -1,16 +1,17 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import verifyJWT from "../middlewares/auth.middleware.js";
+import upload from "../middlewares/multer.middleware.js";
 import {
   addVehicle,
   deleteVehicle,
   getAllVehicles,
   getVehicleById,
-  updateVehicle,
+  updateVehicleStatus,
 } from "../controllers/vehicle.controller.js";
 
 const router = Router();
 
-router.use(verifyJWT);
+router.use(verifyJWT, upload.none());
 
 router.route("/")
     .post(addVehicle)       
@@ -18,7 +19,7 @@ router.route("/")
 
 router.route("/:vehicleId")
     .get(getVehicleById)    
-    .patch(updateVehicle)   
+    .patch(updateVehicleStatus)   
     .delete(deleteVehicle); 
 
 export default router;

@@ -34,6 +34,11 @@ const bidSchema = new Schema(
   { timestamps: true }
 );
 
+bidSchema.index(
+  { load: 1, proposedVehicle: 1 },
+  { unique: true }
+);
+
 const Bid = mongoose.model("Bid", bidSchema);
 
 export default Bid;

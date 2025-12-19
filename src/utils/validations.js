@@ -21,3 +21,107 @@ export const isGSTValid = (gst) => {
   const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
   return gstRegex.test(gst);
 };
+
+export const validateIndianVehicleNumber = (number) => {
+  if (!number) return null;
+
+  const cleanNumber = number
+    .toString()
+    .replace(/[\s-.]/g, "")
+    .toUpperCase();
+  const regex = /^[A-Z]{2}\d{2}[A-Z]{1,2}\d{4}$/;
+
+  if (regex.test(cleanNumber)) return cleanNumber;
+  return null;
+};
+
+export const validateManufacturingYear = (year) => {
+  if (!year) return "Manufacturing year is required";
+
+  const currentYear = new Date().getFullYear();
+  const yearRegex = /^\d{4}$/;
+
+  if (!yearRegex.test(year)) {
+    return "Manufacturing year must be a valid 4-digit year (e.g., 2022)";
+  }
+
+  const yearNum = parseInt(year, 10);
+
+  if (yearNum > currentYear) {
+    return `Manufacturing year cannot be in the future (${yearNum})`;
+  }
+
+  if (yearNum < currentYear - 20) {
+    return `Vehicle is too old to be registered (older than ${currentYear - 20})`;
+  }
+
+  return null;
+};
+
+export const validateLoadDates = ({
+  biddingDeadline,
+  pickupDate,
+  expectedDeliveryDate,
+  toleranceMinutes = 5,
+}) => {
+  const errors = {};
+
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - toleranceMinutes);
+
+  const parseDate = (value) => {
+    const date = new Date(value);
+    return date instanceof Date && !isNaN(date.getTime()) ? date : null;
+  };
+
+  const bidding = parseDate(biddingDeadline);
+  const pickup = parseDate(pickupDate);
+  const delivery = parseDate(expectedDeliveryDate);
+
+  if (!bidding) errors.biddingDeadline = "Invalid bidding deadline date";
+  if (!pickup) errors.pickupDate = "Invalid pickup date";
+  if (!delivery) errors.expectedDeliveryDate = "Invalid delivery date";
+
+  if (Object.keys(errors).length > 0) {
+    return {
+      isValid: false,
+      errors,
+    };
+  }
+
+  if (bidding < now) {
+    errors.biddingDeadline = "Bidding deadline cannot be in the past";
+  }
+
+  if (pickup < now) {
+    errors.pickupDate = "Pickup date cannot be in the past";
+  }
+
+  if (delivery < now) {
+    errors.expectedDeliveryDate = "Delivery date cannot be in the past";
+  }
+
+  if (bidding >= pickup) {
+    errors.biddingDeadline = "Bidding deadline must be before pickup date";
+  }
+
+  if (pickup >= delivery) {
+    errors.pickupDate = "Pickup date must be before delivery date";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return {
+      isValid: false,
+      errors,
+    };
+  }
+
+  return {
+    isValid: true,
+    data: {
+      biddingDeadline: bidding,
+      pickupDate: pickup,
+      expectedDeliveryDate: delivery,
+    },
+  };
+};

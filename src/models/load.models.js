@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import ApiError from "../utils/apiError.js";
 
 const loadSchema = new Schema(
   {
@@ -89,6 +90,22 @@ const loadSchema = new Schema(
   },
   { timestamps: true }
 );
+
+loadSchema.pre("validate", function () {
+  if (this.biddingDeadline >= this.pickupDate) {
+    throw new ApiError(
+      400,
+      "Bidding deadline must be before pickup date"
+    );
+  }
+
+  if (this.pickupDate >= this.expectedDeliveryDate) {
+    throw new ApiError(
+      400,
+      "Pickup date must be before delivery date"
+    );
+  }
+});
 
 const Load = mongoose.model("Load", loadSchema);
 

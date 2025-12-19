@@ -22,6 +22,8 @@ const generateAccessAndRefreshTokens = async (userId, role) => {
     if (role === "shipper") {
       const shipper = await Shipper.findById(userId);
 
+      if (!shipper) throw new ApiError(404, "User not found");
+
       refreshToken = shipper.generateRefreshToken();
       accessToken = shipper.generateAccessToken();
       shipper.refreshToken = refreshToken;
@@ -30,6 +32,8 @@ const generateAccessAndRefreshTokens = async (userId, role) => {
     } 
     else if (role === "carrier") {
       const carrier = await Carrier.findById(userId);
+
+      if (!carrier) throw new ApiError(404, "User not found");
 
       refreshToken = carrier.generateRefreshToken();
       accessToken = carrier.generateAccessToken();
