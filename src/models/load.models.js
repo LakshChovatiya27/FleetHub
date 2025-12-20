@@ -45,7 +45,7 @@ const loadSchema = new Schema(
         "TRAILER_FLATBED",
         "TANKER",
         "REFRIGERATED",
-        "PICKUP_SMALL",
+        "LCV",
       ],
       validate: [
         (val) => val.length > 0,
@@ -79,8 +79,8 @@ const loadSchema = new Schema(
       default: null,
     },
     driverDetails: {
-      name: { type: String },
-      phone: { type: String }
+      name: { type: String, default: null },
+      phone: { type: String, default: null }
     },
     status: {
       type: String,

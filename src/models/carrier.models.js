@@ -52,6 +52,10 @@ const carrierSchema = new Schema(
       type: Number,
       default: 0,
     },
+    ratingCount: {
+      type: Number,
+      default: 0,
+    },
     totalTrips: {
       type: Number,
       default: 0,

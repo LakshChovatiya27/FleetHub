@@ -18,9 +18,13 @@ app.use(cookieParser())
 
 import authRouter from "./routes/auth.routes.js"
 import vehicleRouter from "./routes/vehicle.routes.js"
+import shipperRouter from "./routes/shipper.routes.js"
+import carrierRouter from "./routes/carrier.routes.js"
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/vehicles", vehicleRouter);
+app.use("/api/v1/shippers", shipperRouter);
+app.use("/api/v1/carriers", carrierRouter);
 
 app.use((req, res, next) => {
   next(new ApiError(404, `Route not found: ${req.method} ${req.originalUrl}`));

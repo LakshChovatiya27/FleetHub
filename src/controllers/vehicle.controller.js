@@ -2,6 +2,9 @@ import Vehicle from "../models/vehicle.models.js";
 import Carrier from "../models/carrier.models.js";
 import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
+import mongoose from "mongoose";
+import Bid from "../models/bid.models.js";
+import Load from "../models/load.models.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
   validateIndianVehicleNumber,
@@ -171,36 +174,57 @@ export const getAllVehicles = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, vehicles, "Fleet fetched successfully"));
 });
 
-export const deleteVehicle = asyncHandler(async (req, res) => {
+export const removeVehicle = asyncHandler(async (req, res) => {
   if (!req.user) throw new ApiError(401, "Unauthorized");
 
-  const role = req.user?.role;
-  if (role !== "carrier")
-    throw new ApiError(403, "Only carriers can delete vehicles");
+  if (req.user.role !== "carrier") {
+    throw new ApiError(403, "Only carriers can remove vehicles");
+  }
 
   const { vehicleId } = req.params;
 
   const vehicle = await Vehicle.findById(vehicleId);
-
   if (!vehicle) {
     throw new ApiError(404, "Vehicle not found");
   }
 
   if (vehicle.carrier.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "You are not authorized to delete this vehicle");
+    throw new ApiError(403, "Not authorized to remove this vehicle");
+  }
+
+  if (vehicle.status === "RETIRED") {
+    throw new ApiError(400, "Vehicle is already retired");
+  }
+
+  const hasAnyBid = await Bid.exists({ proposedVehicle: vehicle._id });
+  const hasAnyLoad = await Load.exists({ assignedVehicle: vehicle._id });
+
+  if ( vehicle.status === "AVAILABLE" && !hasAnyBid && !hasAnyLoad ) {
+    await Vehicle.findByIdAndDelete(vehicle._id);
+    await Carrier.findByIdAndUpdate(req.user._id, { $inc: { fleetSize: -1 } });
+
+    return res
+    .status(200)
+    .json(
+      new ApiResponse(200, null, "Vehicle deleted permanently")
+    );
   }
 
   if (["BIDDED", "BOOKED", "IN_TRANSIT"].includes(vehicle.status)) {
-    throw new ApiError(400, "Cannot delete vehicle with active assignments");
+    throw new ApiError(400, "Cannot remove vehicle from fleet with active assignments");
   }
 
-  await Vehicle.findByIdAndDelete(vehicleId);
-
+  vehicle.status = "RETIRED";
+  await vehicle.save();
   await Carrier.findByIdAndUpdate(req.user._id, { $inc: { fleetSize: -1 } });
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "Vehicle deleted successfully"));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      vehicle,
+      "Vehicle retired successfully"
+    )
+  );
 });
 
 export const updateVehicleStatus = asyncHandler(async (req, res) => {
@@ -263,4 +287,42 @@ export const updateVehicleStatus = asyncHandler(async (req, res) => {
         "Vehicle status updated successfully"
       )
     );
+});
+
+export const markVehicleMaintenance = asyncHandler(async (req, res) => {
+  if (!req.user) throw new ApiError(401, "Unauthorized");
+
+  if (req.user.role !== "carrier") {
+    throw new ApiError(403, "Only carriers can mark vehicles for maintenance");
+  }
+
+  const { vehicleId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+    throw new ApiError(400, "Invalid vehicle ID");
+  }
+
+  const vehicle = await Vehicle.findById(vehicleId);
+  if (!vehicle) throw new ApiError(404, "Vehicle not found");
+
+  if (vehicle.carrier.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "Not authorized to update this vehicle");
+  }
+
+  if (vehicle.status === "RETIRED") {
+    throw new ApiError(400, "Retired vehicle cannot be put into maintenance");
+  }
+
+  if (vehicle.status !== "AVAILABLE") {
+    throw new ApiError(400, "Only available vehicles can be put into maintenance");
+  }
+
+  vehicle.status = "MAINTENANCE";
+  await vehicle.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200, { vehicleId: vehicle._id }, "Vehicle marked as under maintenance"
+    )
+  );
 });

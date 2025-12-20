@@ -3,10 +3,11 @@ import verifyJWT from "../middlewares/auth.middleware.js";
 import upload from "../middlewares/multer.middleware.js";
 import {
   addVehicle,
-  deleteVehicle,
   getAllVehicles,
   getVehicleById,
   updateVehicleStatus,
+  markVehicleMaintenance,
+  removeVehicle
 } from "../controllers/vehicle.controller.js";
 
 const router = Router();
@@ -20,6 +21,9 @@ router.route("/")
 router.route("/:vehicleId")
     .get(getVehicleById)    
     .patch(updateVehicleStatus)   
-    .delete(deleteVehicle); 
+    .delete(removeVehicle);
+    
+router.route("/:vehicleId/maintenance")
+    .patch(markVehicleMaintenance);
 
 export default router;

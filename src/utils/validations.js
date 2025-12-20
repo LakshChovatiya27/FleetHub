@@ -10,7 +10,8 @@ export const isEmpty = (field) => {
 
 export const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export const isPasswordValid = (password) => password.length >= 6;
+export const isPasswordValid = (password) =>
+  typeof password === "string" && password.length >= 6;
 
 export const isPhoneNumberValid = (phoneNumber) => {
   const indianPhoneRegex = /^\d{10}$/;
@@ -36,16 +37,19 @@ export const validateIndianVehicleNumber = (number) => {
 };
 
 export const validateManufacturingYear = (year) => {
-  if (!year) return "Manufacturing year is required";
+  if (year === null || year === undefined || year === "") {
+    return "Manufacturing year is required";
+  }
 
+  const yearStr = String(year).trim();
   const currentYear = new Date().getFullYear();
   const yearRegex = /^\d{4}$/;
 
-  if (!yearRegex.test(year)) {
+  if (!yearRegex.test(yearStr)) {
     return "Manufacturing year must be a valid 4-digit year (e.g., 2022)";
   }
 
-  const yearNum = parseInt(year, 10);
+  const yearNum = Number(yearStr);
 
   if (yearNum > currentYear) {
     return `Manufacturing year cannot be in the future (${yearNum})`;
@@ -122,6 +126,49 @@ export const validateLoadDates = ({
       biddingDeadline: bidding,
       pickupDate: pickup,
       expectedDeliveryDate: delivery,
+    },
+  };
+};
+
+export const validateLocation = (location, label = "Location") => {
+  const errors = [];
+
+  if (!location || typeof location !== "object") {
+    return {
+      isValid: false,
+      errors: [`${label} is required and must be an object`],
+    };
+  }
+
+  const { street, city, state, pincode } = location;
+
+  if (!street || typeof street !== "string" || !street.trim()) {
+    errors.push(`${label} street is required`);
+  }
+
+  if (!city || typeof city !== "string" || !city.trim()) {
+    errors.push(`${label} city is required`);
+  }
+
+  if (!state || typeof state !== "string" || !state.trim()) {
+    errors.push(`${label} state is required`);
+  }
+
+  if (
+    !pincode ||
+    !/^[1-9][0-9]{5}$/.test(String(pincode))
+  ) {
+    errors.push(`${label} pincode must be a valid 6-digit number`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: {
+      street: street?.trim(),
+      city: city?.trim(),
+      state: state?.trim(),
+      pincode: String(pincode),
     },
   };
 };
